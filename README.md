@@ -10,6 +10,15 @@ node tools/serve.js
 
 Puis ouvre http://localhost:8080.
 
+## Installer sur téléphone
+
+Site en ligne : https://damienbrds.github.io/village-tracker/
+
+- **Android (Chrome)** : bouton ⬇ en haut à droite, ou menu ⋮ → *Installer l'application*
+- **iPhone (Safari)** : bouton ⬇ en haut à droite pour l'aide, ou *Partager* → *Sur l'écran d'accueil*
+
+L'app fonctionne ensuite hors connexion (`sw.js` garde le site et les images en cache).
+
 ## Importer ton village
 
 1. Dans le jeu : **Paramètres → Plus de paramètres → Exporter les données → Copier**

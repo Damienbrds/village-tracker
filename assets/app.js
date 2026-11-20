@@ -566,11 +566,11 @@
     const maxed = byLvl[max] || 0;
     const s = summarize([a]);
     return `<div class="section">
-      <div class="section-head">${thumb(a.id, a.maxLvl, 'thumb sm')}<h3>${esc(it.n)}s</h3><span class="meta">${maxed}/${total} au niveau ${max} · ${costInline(s.res)}</span></div>
+      <div class="section-head">${thumb(a.id, a.maxLvl, 'thumb sm')}<h3>${esc(it.n)}s</h3><span class="meta">${[`${maxed}/${total} au niveau ${max}`, costInline(s.res)].filter(Boolean).join(' · ')}</span></div>
       <div class="card">
         <div class="wall-bar">${levels.map((L) => `<div style="flex:${byLvl[L]};background:${color(L)}" title="Niveau ${L} : ${byLvl[L]}">${byLvl[L] / total > 0.06 ? (L || '–') : ''}</div>`).join('')}</div>
         <table class="wall-table">
-          <thead><tr><th>Niveau</th><th>Nombre</th><th>Coût par mur jusqu'au max</th><th>Total</th></tr></thead>
+          <thead><tr><th>Niveau</th><th>Nombre</th><th title="Coût par mur jusqu'au niveau max">Coût / mur</th><th>Total</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
         <p class="fineprint">Les murs peuvent se payer en or ou en élixir à partir d'un certain niveau.</p>
@@ -621,6 +621,11 @@
       lens.classList.remove('moving'); void lens.offsetWidth; lens.classList.add('moving');
     }
     lensPos = next;
+    // Sur téléphone, la barre défile : on garde l'onglet actif bien visible (centré).
+    if (tabs.scrollWidth > tabs.clientWidth) {
+      const left = Math.max(0, next.x - (tabs.clientWidth - next.w) / 2);
+      if (Math.abs(tabs.scrollLeft - left) > 4) tabs.scrollTo({ left, behavior: prev === next ? 'auto' : 'smooth' });
+    }
   }
   window.addEventListener('resize', () => { lensPos = null; placeLens(); });
   if (document.fonts) document.fonts.ready.then(() => { lensPos = null; placeLens(); });
@@ -641,10 +646,12 @@
     const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
     const apply = () => {
       root.dataset.theme = next;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = next === 'dark' ? '#080b12' : '#e9eef7';
       try { localStorage.setItem('vt-theme', next); } catch { /* navigation privée */ }
     };
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!document.startViewTransition || reduce) { apply(); return; }
+    if (!document.startViewTransition || reduce || document.visibilityState !== 'visible') { apply(); return; }
     const r = e.currentTarget.getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
     const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
@@ -835,6 +842,53 @@
     if (out.pets[0]) out.pets[0].timer = 3600 * 9;
     return out;
   }
+
+  // ---------------------------------------------------------------- Application installable
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+  const installBtn = $('#btn-install');
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let installPrompt = null;
+  // Android / Chrome / Edge : le navigateur propose l'installation, on l'expose via notre bouton.
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    installPrompt = e;
+    installBtn.hidden = false;
+  });
+  window.addEventListener('appinstalled', () => { installPrompt = null; installBtn.hidden = true; });
+  // iPhone / iPad : pas d'invite automatique, on explique la marche à suivre.
+  if (isIOS && !standalone) installBtn.hidden = false;
+
+  function showIOSHelp() {
+    const wrap = document.createElement('div');
+    wrap.className = 'sheet-backdrop';
+    wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <h2 id="sheet-title">Installer sur ton iPhone</h2>
+      <ol>
+        <li>Dans Safari, touche <b>Partager</b> <svg class="ios-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4M6 11H5v10h14V11h-1"/></svg></li>
+        <li>Choisis <b>Sur l'écran d'accueil</b></li>
+        <li>Touche <b>Ajouter</b> : l'app apparaît avec ses données, même hors connexion.</li>
+      </ol>
+      <button class="btn primary" type="button">Compris</button>
+    </div>`;
+    const close = () => wrap.remove();
+    wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('.btn')) close(); });
+    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
+    document.body.appendChild(wrap);
+    wrap.querySelector('.btn').focus();
+  }
+  installBtn.addEventListener('click', async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') installBtn.hidden = true;
+      installPrompt = null;
+    } else if (isIOS) {
+      showIOSHelp();
+    }
+  });
 
   // ---------------------------------------------------------------- Démarrage
   $('#data-version').textContent = `mises à jour du ${D.generated} (HDV max ${D.maxTH})`;
